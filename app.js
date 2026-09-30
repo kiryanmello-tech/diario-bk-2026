@@ -266,7 +266,7 @@ function updateAllTickets(state){
  set('flights','f7',{route:'HAN T2 → PVG',when:'21/10 18h15 → 22h25',kind:'Air China CA756',note:'Comprado em 29/09 · casal · Trip.com (emitindo). Chegar a Noi Bai ~14h.',status:'ok',tag:'comprado'});
  const g=find('budget','m4');if(g){g.value=0;g.label='Voos da Ásia · previsão antiga zerada';g.sub='Todos os voos internos comprados; valores reais nas linhas próprias.';g.status='ok';}
  if(!find('budget','flight-han-pvg'))state.budget.push({id:'flight-han-pvg',label:'Hanói → Xangai · Air China CA756',sub:'21/10 18h15–22h25 · casal ·.',value:0,status:'ok',color:'#34d399'});
- set('budget','flight-pek-szx',{value:0,sub:'09/10 · casal ·conforme Trip.com .'});
+ set('budget','flight-pek-szx',{value:0,sub:'09/10 · casal ·conforme Trip.com ().'});
  set('flights','f4',{note:'Comprado · casal · Trip.com. Sair do hotel ~13h15; chegar ao PEK T3 até 14h15.'});
  set('tasks','t5',{done:true,label:'Todos os voos internos da Ásia comprados',sub:'PEK→SZX CA1337 · HKG→DAD UO558 · DAD→HAN 9G924 · HAN→PVG CA756.'});
  set('tasks','t-pandas',{done:true,label:'Ingresso zoo + Casa dos Pandas 07/10 (confirmando)',sub:'Trip.com · status "confirmando". Conferir se são 2 ingressos (casal).'});
@@ -338,12 +338,20 @@ function updateBagHk(state){
 }
 
 function updateBanaHills(state){
- if(state.banaVersion===1)return state;
+ if(state.banaVersion===1)return updateFlightStatus(state);
  const it=(state.budget||[]).find(x=>x.id==='m6');
  if(it)Object.assign(it,{value:0,sub:'Reestimado: entradas: Templo do Céu, Hoi An, aula de culinária, marionetes, observatório, Maglev, UCCA) + transfers de aeroporto/estação + metrô/DiDi/Grab/dia. Ba Na Hills em linha própria.'});
  if(!(state.budget||[]).find(x=>x.id==='bana'))state.budget.push({id:'bana',cat:'tours',label:'Ba Na Hills · 15/10',sub:'Teleférico + Grab ida e volta + almoço buffet opcional. Substitui My Son.',value:0,status:'wait',color:'#fbbf24'});
  if(!(state.tasks||[]).find(x=>x.id==='t-bana'))state.tasks.push({id:'t-bana',label:'Comprar Ba Na Hills online (15/10)',due:'2026-10-10',done:false,sub:'Online saimais barato por pessoa. Olhar a previsão na véspera: com neblina/chuva forte, trocar com 14 ou 16/10.'});
- state.banaVersion=1;return state;
+ state.banaVersion=1;return updateFlightStatus(state);
+}
+
+function updateFlightStatus(state){
+ if(state.flightStatusVersion===1)return state;
+ const f=id=>(state.flights||[]).find(x=>x.id===id);
+ const f3=f('f3'); if(f3)Object.assign(f3,{status:'ok',tag:'comprado'});
+ const f5=f('f5'); if(f5)Object.assign(f5,{status:'ok',tag:'comprado'});
+ state.flightStatusVersion=1;return state;
 }
 
 function updateSeptemberReceipts(state){
@@ -437,10 +445,10 @@ function saveLocal(){ try{ localStorage.setItem(LS_KEY,JSON.stringify(S)); }catc
 function setSync(t){ const e=document.getElementById("sync"); if(e) e.textContent=t; }
 function save(){
   if(applyingRemote) return;
-  saveLocal;
+  saveLocal();
   clearTimeout(saveTimer);
   saveTimer=setTimeout(()=>{
-    if(remoteDoc) remoteDoc.set({payload:JSON.stringify(S),at:new Date.toISOString()})
+    if(remoteDoc) remoteDoc.set({payload:JSON.stringify(S),at:new Date().toISOString()})
       .then(()=>setSync("sincronizado")).catch(()=>setSync("salvo neste aparelho"));
   },500);
 }
@@ -451,13 +459,13 @@ async function initRemote(){
     if(!db){ setSync("salvo neste aparelho"); return; }
     remoteDoc=db.doc("trip/state");
     remoteDoc.onSnapshot(snap=>{
-      if(!snap.exists){ save; return; }
+      if(!snap.exists){ save(); return; }
       if(snap.metadata&&snap.metadata.hasPendingWrites) return;
-      const d=snap.data; if(!d||!d.payload) return;
+      const d=snap.data(); if(!d||!d.payload) return;
       try{
         const inc=JSON.parse(d.payload);
         if(inc&&inc.v===4&&JSON.stringify(inc)!==JSON.stringify(S)){
-          applyingRemote=true; S=inc; saveLocal; renderAll; applyingRemote=false;
+          applyingRemote=true; S=inc; saveLocal(); renderAll(); applyingRemote=false;
           setSync("atualizado de outro aparelho");
         } else setSync("sincronizado");
       }catch(e){}
@@ -467,14 +475,14 @@ async function initRemote(){
 
 /* ======================= UTIL ======================= */
 const MES=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
-function today(){ const d=new Date; return new Date(d.getFullYear,d.getMonth,d.getDate()); }
+function today(){ const d=new Date(); return new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
 function parseD(s){ if(!s) return null; const p=String(s).split("-"); if(p.length!==3) return null;
   const d=new Date(+p[0],+p[1]-1,+p[2]); return isNaN(d)?null:d; }
 function dias(a,b){ return Math.round((b-a)/86400000); }
 function fmtDM(s){ const d=parseD(s); return d? String(d.getDate()).padStart(2,"0")+" "+MES[d.getMonth()] : "—"; }
 function brl(n){ return "R$ "+Number(n||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-function uid(p){ return p+"-"+Math.random.toString(36).slice(2,8); }
+function uid(p){ return p+"-"+Math.random().toString(36).slice(2,8); }
 function lines(v){ return String(v||"").split("\n").map(s=>s.trim()).filter(Boolean); }
 const ST={ok:{c:"st-ok",t:"confirmado"},wait:{c:"st-pend",t:"pendente"},crit:{c:"st-crit",t:"urgente"}};
 function stTag(s,txt){ const o=ST[s]||ST.wait; return '<span class="st '+o.c+'">'+esc(txt||o.t)+'</span>'; }
@@ -486,7 +494,7 @@ function rich(s){ return esc(s).replace(/&lt;(\/?)(b|br|i|u)&gt;/g,"<$1$2>"); }
 /* ======================= COUNTDOWN + TICKER ======================= */
 const dep=new Date(DEP_ISO);
 function tickClock(){
-  const d=dep-new Date, el=document.getElementById("countdown");
+  const d=dep-new Date(), el=document.getElementById("countdown");
   if(!el) return;
   if(d<=0){ el.textContent="EM VIAGEM ✈"; return; }
   const dd=Math.floor(d/864e5), h=Math.floor(d%864e5/36e5), m=Math.floor(d%36e5/6e4);
@@ -498,7 +506,7 @@ function stationMessage(text,index){
  return '<span class="station-message"><span class="station-service led-'+(index%4)+'">'+esc(chunks.shift())+'</span>'+chunks.map((x,j)=>'<span class="station-field '+(j%2?'led-white':'led-'+((index+1)%4))+'">'+esc(x)+'</span>').join('')+'<span class="station-end" aria-hidden="true">▏</span></span>';
 }
 function renderTicker(){
- const d=Math.max(0,dias(today,parseD(DEP_DATE)));
+ const d=Math.max(0,dias(today(),parseD(DEP_DATE)));
  const sets=[
  ['EMBARQUE EM '+d+' DIAS • 02 OUT 2026','CWB 15:10 → CGH 16:15 • LATAM CONFIRMADO','GRU T3 • META 18:00 • DESPACHO ATÉ 19:50','MUNIQUE → PEQUIM → SHENZHEN → VIETNÃ → XANGAI'],
  ['BÁRBARA & KIKO • PRÓXIMA PARADA: BOAS HISTÓRIAS','PEQUIM • HUTONGS + GUIJIE + PATO LAQUEADO','SHENZHEN • ARTE + SEA WORLD + MÚSICA','HOI AN • COZINHAR + LANTERNAS • HANÓI • CAFÉS + BIA HOI','XANGAI • MUSEU + BUND + JAZZ'],
@@ -514,7 +522,7 @@ document.addEventListener('click',e=>{
 
 /* ======================= KPIs ======================= */
 function renderKPIs(){
-  const t=today, d=dias(t,parseD(DEP_DATE));
+  const t=today(), d=dias(t,parseD(DEP_DATE));
   const late=S.tasks.filter(x=>!x.done&&parseD(x.due)&&dias(t,parseD(x.due))<0).length;
   const open=S.tasks.filter(x=>!x.done).length;
   const naoComprado=S.flights.filter(f=>f.status!=="ok").length;
@@ -601,8 +609,8 @@ function renderPlanVsReal(){ return;
     '</tbody><tfoot><tr><td>Total</td><td class="n">'+brl(tp)+'</td><td class="n">'+brl(tr)+'</td><td class="n '+(d>0?'over':'under')+'">'+(d>0?'+':'')+brl(d)+'</td></tr></tfoot></table></div>';
 }
 function renderBudget(){ if(!document.getElementById("budgetBars")) return;
-  renderPlanVsReal;
-  const rows=S.budget.slice.sort((a,b)=>(+b.value||0)-(+a.value||0));
+  renderPlanVsReal();
+  const rows=S.budget.slice().sort((a,b)=>(+b.value||0)-(+a.value||0));
   const total=S.budget.reduce((a,b)=>a+(+b.value||0),0);
   const pago=S.budget.filter(b=>b.status==="ok").reduce((a,b)=>a+(+b.value||0),0);
   const max=Math.max.apply(null,rows.map(r=>+r.value||0).concat([1]));
@@ -632,10 +640,10 @@ function renderBudget(){ if(!document.getElementById("budgetBars")) return;
 
 /* ======================= PRAZOS ======================= */
 function renderTasks(){
-  const t=today;
+  const t=today();
   const groups={};
   S.tasks.forEach(x=>{ (groups[x.due]=groups[x.due]||[]).push(x); });
-  const keys=Object.keys(groups).sort;
+  const keys=Object.keys(groups).sort();
   document.getElementById("phases").innerHTML=keys.map(k=>{
     const d=parseD(k), diff=d?dias(t,d):null;
     const allDone=groups[k].every(x=>x.done);
@@ -678,9 +686,9 @@ document.addEventListener('error',e=>{if(e.target.matches&&e.target.matches('.re
 
 function renderWishes(){const w=S.experienceWishes||[];document.querySelectorAll('[data-wish]').forEach(b=>{const on=w.includes(b.dataset.wish);b.setAttribute('aria-pressed',String(on));b.textContent=on?'♥ Na nossa lista':'♡ Quero fazer';});document.getElementById('savedCount').textContent=w.length+' experiências na nossa lista';}
 document.addEventListener('click',e=>{const f=e.target.closest('[data-city]');if(f){document.querySelectorAll('[data-city]').forEach(b=>b.setAttribute('aria-pressed',String(b===f)));document.querySelectorAll('[data-exp-city]').forEach(c=>{c.hidden=f.dataset.city!=='Todos'&&c.dataset.expCity!==f.dataset.city;});}
-const w=e.target.closest('[data-wish]');if(w){S.experienceWishes=S.experienceWishes||[];const id=w.dataset.wish;S.experienceWishes=S.experienceWishes.includes(id)?S.experienceWishes.filter(x=>x!==id):[...S.experienceWishes,id];save;renderWishes;}});
+const w=e.target.closest('[data-wish]');if(w){S.experienceWishes=S.experienceWishes||[];const id=w.dataset.wish;S.experienceWishes=S.experienceWishes.includes(id)?S.experienceWishes.filter(x=>x!==id):[...S.experienceWishes,id];save();renderWishes();}});
 
-function renderAll(){ S=updateHotels(S); renderTicker; renderKPIs; renderRoute; renderFlights; renderBudget; renderTasks; renderAlerts; renderTech; tickClock; renderWishes; }
+function renderAll(){ S=updateHotels(S); renderTicker(); renderKPIs(); renderRoute(); renderFlights(); renderBudget(); renderTasks(); renderAlerts(); renderTech(); tickClock(); renderWishes(); }
 
 /* ======================= MODAL ======================= */
 const FORMS={
@@ -752,10 +760,10 @@ function openModal(coll,id){
   const host=document.getElementById("modalHost");
   const scrim=host.querySelector("[data-scrim]");
   const close=()=>{host.innerHTML="";};
-  const f0=host.querySelector("input,select,textarea"); if(f0) f0.focus;
+  const f0=host.querySelector("input,select,textarea"); if(f0) f0.focus();
   scrim.addEventListener("click",e=>{
-    if(e.target===scrim||e.target.closest("[data-close]")){ close; return; }
-    if(e.target.closest("[data-del]")){ S[coll]=S[coll].filter(x=>x.id!==id); close; save; renderAll; toast("Removido"); return; }
+    if(e.target===scrim||e.target.closest("[data-close]")){ close(); return; }
+    if(e.target.closest("[data-del]")){ S[coll]=S[coll].filter(x=>x.id!==id); close(); save(); renderAll(); toast("Removido"); return; }
     if(e.target.closest("[data-save]")){
       const obj=isNew?Object.assign({id:uid(coll.slice(0,2))},NEW_DEFAULTS[coll]):item;
       scrim.querySelectorAll("[data-k]").forEach(el=>{
@@ -766,10 +774,10 @@ function openModal(coll,id){
         obj[k]=val;
       });
       if(isNew) S[coll].push(obj);
-      close; save; renderAll; toast("Salvo");
+      close(); save(); renderAll(); toast("Salvo");
     }
   });
-  scrim.addEventListener("keydown",e=>{ if(e.key==="Escape") close; });
+  scrim.addEventListener("keydown",e=>{ if(e.key==="Escape") close(); });
 }
 
 /* ======================= BACKUP ======================= */
@@ -785,7 +793,7 @@ async function exportBackup(){
     return;
   }
   const blob=new Blob([json],{type:"application/json"}), u=URL.createObjectURL(blob), a=document.createElement("a");
-  a.href=u; a.download=name; document.body.appendChild(a); a.click; a.remove;
+  a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(u),1000); toast("Backup baixado");
 }
 
@@ -794,35 +802,35 @@ document.addEventListener("click",e=>{
   const ed=e.target.closest("[data-edit]"); if(ed){ openModal(ed.getAttribute("data-edit"),ed.getAttribute("data-id")); return; }
   const ad=e.target.closest("[data-add]"); if(ad){ openModal(ad.getAttribute("data-add"),null); return; }
   const tg=e.target.closest("[data-toggle]");
-  if(tg){ const t=S.tasks.find(x=>x.id===tg.getAttribute("data-toggle")); if(t){ t.done=!t.done; save; renderAll; } return; }
+  if(tg){ const t=S.tasks.find(x=>x.id===tg.getAttribute("data-toggle")); if(t){ t.done=!t.done; save(); renderAll(); } return; }
   const ac=e.target.closest("[data-act]");
   if(ac){
     const a=ac.getAttribute("data-act");
-    if(a==="export") exportBackup;
-    if(a==="import") document.getElementById("fileIn").click;
-    if(a==="print") window.print;
-    if(a==="reset"&&confirm("Voltar todos os dados ao estado original? Suas edições serão perdidas.")){ S=defaults; save; renderAll; toast("Dados restaurados"); }
+    if(a==="export") exportBackup();
+    if(a==="import") document.getElementById("fileIn").click();
+    if(a==="print") window.print();
+    if(a==="reset"&&confirm("Voltar todos os dados ao estado original? Suas edições serão perdidas.")){ S=defaults(); save(); renderAll(); toast("Dados restaurados"); }
   }
 });
 document.addEventListener("keydown",e=>{
   if(e.key!=="Enter"&&e.key!==" ") return;
   const el=e.target.closest&&e.target.closest('[data-edit][role="button"]');
-  if(el){ e.preventDefault; openModal(el.getAttribute("data-edit"),el.getAttribute("data-id")); }
+  if(el){ e.preventDefault(); openModal(el.getAttribute("data-edit"),el.getAttribute("data-id")); }
 });
 document.getElementById("fileIn").addEventListener("change",e=>{
   const f=e.target.files&&e.target.files[0]; if(!f) return;
-  const r=new FileReader;
+  const r=new FileReader();
   r.onload=()=>{ try{ const o=JSON.parse(r.result);
-    if(o&&o.legs&&o.tasks&&o.budget){ S=o; S.v=4; save; renderAll; toast("Backup restaurado"); }
+    if(o&&o.legs&&o.tasks&&o.budget){ S=o; S.v=4; save(); renderAll(); toast("Backup restaurado"); }
     else toast("Arquivo não reconhecido"); }catch(err){ toast("Arquivo inválido"); } };
   r.readAsText(f); e.target.value="";
 });
 
 /* ======================= BOOT ======================= */
-S=loadLocal()||defaults;
-renderAll;
+S=loadLocal()||defaults();
+renderAll();
 setInterval(tickClock,30000);
 setSync("salvo neste aparelho");
-initRemote;
+initRemote();
 
-});
+})();
