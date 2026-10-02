@@ -105,3 +105,49 @@ document.querySelectorAll('[data-board]').forEach(button=>button.addEventListene
  setInterval(()=>{if(!inactive())advance(1);},8000);setInterval(clock,30000);clock();render();
  document.querySelector('.motion-toggle').addEventListener('click',()=>panel.classList.toggle('airport-held',document.body.classList.contains('motion-paused')||held));
 })();
+
+(function(){
+ 'use strict';
+ const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const short=date=>date.slice(8,10)+'/'+date.slice(5,7);
+ const finite=value=>typeof value==='number'&&Number.isFinite(value);
+ function dates(place){return place.dates.flatMap(([start,end])=>{const out=[];let date=start;while(date<=end){out.push(date);date=new Date(Date.parse(date+'T12:00:00Z')+86400000).toISOString().slice(0,10);}return out;});}
+ function summarize(place,daily){
+  const days=dates(place).map(date=>{const i=daily?.time?.indexOf(date)??-1;const min=daily?.temperature_2m_min?.[i],max=daily?.temperature_2m_max?.[i];return {date,min:finite(min)?min:null,max:finite(max)?max:null,rain:finite(daily?.precipitation_probability_max?.[i])?daily.precipitation_probability_max[i]:null,code:daily?.weather_code?.[i]??null,wind:finite(daily?.wind_speed_10m_max?.[i])?daily.wind_speed_10m_max[i]:null,available:finite(min)&&finite(max)};});
+  const valid=days.filter(d=>d.available),rain=valid.map(d=>d.rain).filter(finite),wind=valid.map(d=>d.wind).filter(finite);
+  return {days,covered:valid.length,total:days.length,min:valid.length?Math.min(...valid.map(d=>d.min)):null,max:valid.length?Math.max(...valid.map(d=>d.max)):null,rain:rain.length?Math.max(...rain):null,wind:wind.length?Math.max(...wind):null};
+ }
+ function condition(code){if(code===null)return ['pending','Sem previsão'];if(code>=95)return ['rain','Trovoadas'];if(code>=51)return [code>=71&&code<=77?'cloud':'rain',code>=71&&code<=77?'Neve':'Chuva'];if(code>=45)return ['cloud','Neblina'];if(code>=2)return ['cloud',code===3?'Nublado':'Sol entre nuvens'];return ['sun','Tempo aberto'];}
+ const graphic=type=>'<div class="wx-scene wx-'+type+'" aria-hidden="true"><div class="wx-orbit"></div><div class="wx-sun"></div><div class="wx-cloud"></div><div class="wx-rain"><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="wx-scene-label">'+(type==='pending'?'NO HORIZONTE':'ATMOSFERA / EXPEDIÇÃO')+'</span></div>';
+ function render(place,record,fetchedAt,now=new Date()){
+  const age=now-new Date(fetchedAt),stale=!Number.isFinite(age)||age>48*3600000;
+  const result=summarize(place,stale?null:record?.daily);
+  const lead=result.days.find(d=>d.available),rainy=result.days.find(d=>d.available&&d.rain>=60);
+  const [type]=condition((rainy||lead)?.code??null);
+  const status=stale?'Consulta antiga · atualize':result.covered===0?'Aguardando previsão':result.covered===result.total?'Datas cobertas':'Cobertura parcial';
+  const range=result.covered?Math.round(result.min)+'<span>—</span>'+Math.round(result.max)+'<small>°C</small>':'<span class="wx-soon">AINDA<br>NO HORIZONTE</span>';
+  const coverage=result.covered?result.covered+' de '+result.total+' dias com temperaturas disponíveis':'As datas ainda não têm previsão disponível nesta consulta.';
+  const stamp=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(new Date(fetchedAt));
+  return '<div class="wx-feature"><div class="wx-intro"><div class="wx-status">'+status+'</div><h3>'+esc(place.city)+'</h3><p class="wx-dates">'+esc(place.label)+' · 2026</p><div class="wx-temperature">'+range+'</div><p class="wx-range-label">'+(result.covered?'Menor mínima → maior máxima dos dias disponíveis':'Confira o contexto de época e as dicas de mala abaixo')+'</p></div>'+graphic(type)+'</div><div class="wx-metrics"><div><span>CHANCE DE CHUVA</span><strong>'+(result.rain===null?'—':result.rain+'%')+'</strong><small>Maior probabilidade diária disponível</small></div><div><span>VENTO</span><strong>'+(result.wind===null?'—':Math.round(result.wind)+'<small> km/h</small>')+'</strong><small>Maior vento médio horário previsto</small></div><div><span>COBERTURA</span><strong>'+result.covered+'<small> / '+result.total+' dias</small></strong><small>'+coverage+'</small></div></div><div class="wx-days" role="list" aria-label="Previsão nos dias da viagem">'+result.days.map(d=>{const [kind,label]=condition(d.code),distant=(Date.parse(d.date+'T12:00:00Z')-now.getTime())/86400000>7;return '<article class="wx-day '+(!d.available?'wx-missing':'')+'" role="listitem"><time datetime="'+d.date+'">'+short(d.date)+'</time><span class="wx-day-icon" aria-hidden="true">'+(!d.available?'◌':kind==='sun'?'☀':kind==='rain'?'☂':'☁')+'</span><b>'+(d.available?Math.round(d.min)+'° / '+Math.round(d.max)+'°':'Sem previsão')+'</b><span>'+(d.available?esc(label):'Aguardando dados')+'</span><small>'+(d.available&&d.rain!==null?'Chuva '+d.rain+'%':'Chuva —')+'</small><em>'+(d.available?(distant?'Tendência distante':'Previsão do modelo'):'')+'</em></article>';}).join('')+'</div><div class="wx-packing"><span aria-hidden="true">↗</span><div><h4>Vai na mala</h4><p>'+esc(place.tip)+'</p><p class="wx-season">'+esc(place.season)+(place.source?' <a href="'+esc(place.source)+'" target="_blank" rel="noopener">Contexto de época ↗</a>':'')+'</p></div></div><p class="wx-updated">Consulta: '+stamp+' (Brasília). Datas e temperaturas diárias no horário do destino. Previsão de modelo; os dias distantes são mais incertos. Não é um alerta meteorológico oficial.</p>';
+ }
+ if(typeof module!=='undefined'&&module.exports){module.exports={dates,summarize,render,condition};return;}
+ const panel=document.querySelector('.climate-panel');if(!panel)return;
+ const config=JSON.parse(document.getElementById('weather-config').textContent);
+ let snapshot=JSON.parse(document.getElementById('weather-snapshot').textContent),selected=config[0].id;
+ const output=document.getElementById('weather-display'),status=document.getElementById('weather-refresh-status'),refresh=document.getElementById('weather-refresh');
+ function show(id){const place=config.find(p=>p.id===id);if(!place)return;selected=id;output.innerHTML=render(place,snapshot.places[id],snapshot.fetchedAt);panel.querySelectorAll('[data-weather-city]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.weatherCity===id)));document.getElementById('weather-extras').value=place.group==='Destinos'?'':id;}
+ panel.querySelectorAll('[data-weather-city]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.weatherCity)));
+ document.getElementById('weather-extras').addEventListener('change',event=>{if(event.target.value)show(event.target.value);});
+ async function update(){refresh.disabled=true;status.textContent='Consultando previsão…';try{
+  const params=new URLSearchParams({latitude:config.map(p=>p.lat).join(','),longitude:config.map(p=>p.lon).join(','),daily:'temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,wind_speed_10m_max',timezone:'auto',forecast_days:'16'});
+  const response=await fetch('https://api.open-meteo.com/v1/forecast?'+params,{signal:AbortSignal.timeout(18000)});if(!response.ok)throw Error('HTTP '+response.status);
+  const rows=await response.json();if(!Array.isArray(rows)||rows.length!==config.length||rows.some(r=>!r.daily?.time?.length))throw Error('Dados incompletos');
+  const next={fetchedAt:new Date().toISOString(),places:{}};rows.forEach((row,i)=>next.places[config[i].id]={timezone:row.timezone,elevation:row.elevation,daily:row.daily});
+  // Mountain weather uses elevation correction rather than a coastal city forecast.
+  const mountain=config.find(p=>p.id==='bana');
+  const mp=new URLSearchParams({latitude:mountain.lat,longitude:mountain.lon,elevation:mountain.elevation,daily:params.get('daily'),timezone:'auto',forecast_days:'16'});
+  const mr=await fetch('https://api.open-meteo.com/v1/forecast?'+mp,{signal:AbortSignal.timeout(12000)});if(!mr.ok)throw Error('Montanha indisponível');const mountainRow=await mr.json();if(!mountainRow.daily?.time?.length)throw Error('Montanha sem dados');next.places.bana={timezone:mountainRow.timezone,elevation:mountainRow.elevation,daily:mountainRow.daily};
+  snapshot=next;show(selected);status.textContent='Previsão consultada agora';
+ }catch(error){show(selected);status.textContent='Sem atualização agora. Veja a data da última consulta abaixo.';}finally{refresh.disabled=false;}}
+ refresh.addEventListener('click',update);show(selected);update();
+})();
