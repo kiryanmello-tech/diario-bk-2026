@@ -89,11 +89,11 @@ IM = {
 }
 card = L("cartao-tonus.jpg").crop((35, 170, 1490, 1560))
 # ordem dos cortes (cada varredura do ECG revela a próxima); foco (fx,fy) relativo
-SEQ = [("selfie", .55, .45), ("espelho", .3, .35), ("video", 0.0, 0), ("dupla", .55, .5),
+SEQ = [("video", 0.0, 1.3), ("espelho", .3, .35), ("bikes", .3, .3), ("dupla", .55, .5),
        ("pesos", .45, .4), ("relogio", .5, .3), ("espelho", .55, .55), ("grafico", .5, .55),
-       ("video", 2.2, 0), ("selfie", .62, .38), ("dupla", .35, .4), ("pesos", .45, .65),
-       ("relogio", .4, .28), ("video", 6.0, 0), ("bikes", .25, .25), ("dupla", .6, .45),
-       ("selfie", .35, .3), ("grafico", .85, .45), ("pesos", .4, .3), ("espelho", .3, .3)]
+       ("video", 4.2, 0.6), ("dupla", .35, .4), ("video", 2.2, 0.6), ("pesos", .45, .65),
+       ("relogio", .4, .28), ("bikes", .25, .25), ("espelho", .2, .2), ("dupla", .6, .45),
+       ("video", 0.3, 1.0), ("grafico", .85, .45), ("pesos", .4, .3), ("espelho", .3, .3)]
 
 CLIP_START = {}   # índice na SEQ -> segundo inicial do clipe (2ª aparição começa mais adiante)
 _seen = {}
@@ -329,7 +329,7 @@ def scene_workout(t):
         k, fx, fy = SEQ[i % len(SEQ)]
         if k == "video":   # vídeo real acelerado: fx = início do trecho (s)
             t_sw = float(np.interp((S0 + i) * BEATS_PER_SWEEP, _phi, _ts))
-            return video_frame(fx + (t - t_sw) * VIDEO_SPEED, punch)
+            return video_frame(fx + (t - t_sw) * (fy or VIDEO_SPEED), punch)   # fy = velocidade do trecho
         if k in CLIPS:     # clipe Kling no lugar da foto: fx = início (s)
             t_sw = float(np.interp((S0 + i) * BEATS_PER_SWEEP, _phi, _ts))
             return clip_frame(k, CLIP_START.get(i, 0.0) + (t - t_sw) * CLIP_SPEED, punch, fx, fy)
@@ -414,7 +414,8 @@ def place(canvas, img, cx, cy, scale, ang, alpha=255):
 def polaroid(img, w=300):
     im = ImageOps.fit(img, (w, int(w * 1.25)), Image.BILINEAR)
     p = Image.new("RGB", (w + 24, int(w * 1.25) + 70), (245, 242, 235)); p.paste(im, (12, 12)); return p
-POLS = [polaroid(IM[k]) for k in ("selfie", "espelho", "bikes", "dupla", "pesos")]
+_cel = Image.open(os.path.join(HERE, "_vframes", VFR[12])).convert("RGB") if VFR else IM["selfie"]
+POLS = [polaroid(_cel)] + [polaroid(IM[k]) for k in ("espelho", "bikes", "dupla", "pesos")]
 BG_CARD = cover(card, 1.5, .5, .5).filter(ImageFilter.GaussianBlur(30))
 
 
