@@ -38,11 +38,11 @@ def hr_at_min(m): return float(np.interp(m, HR_MIN, HR_BPM))
 
 # linha do tempo (s)
 T_INTRO = 3.0
-T_PEAK = 24.6                     # pico de 163 bpm
+T_PEAK = 25.05                    # pico de 163 bpm (congela no respiro antes do drop)
 T_FREEZE = 0.75
 T_CARD = T_PEAK + T_FREEZE        # explosão
-T_END = T_CARD + 7.2
-T_TOTAL = T_END + 0.6
+T_TOTAL = 30.0                    # reel de 30 s (duração da música)
+T_END = T_TOTAL
 NF = int(T_TOTAL * FPS)
 
 def workout_min(t):
@@ -248,8 +248,8 @@ def rain_confetti(t0, t1, rate, seed):
         CONF.append((t, r.uniform(0, W), -30, r.uniform(-80, 80), r.uniform(100, 300), r.choice(HP_COL),
                      r.uniform(10, 20), r.uniform(3, 8), r.uniform(0, 6.28), r.choice([0, 0, 1, 2])))
         t += 1 / rate
-mk_confetti(T_CARD, 380, 1)
-rain_confetti(T_CARD + 1.0, T_END, 18, 2)
+mk_confetti(T_CARD, 300, 1)
+rain_confetti(T_CARD + 0.6, T_END, 14, 2)
 
 def draw_confetti(img, t):
     d = ImageDraw.Draw(img, "RGBA")
@@ -373,55 +373,60 @@ def polaroid(img, w=300):
 POLS = [polaroid(IM[k]) for k in ("selfie", "espelho", "bikes", "dupla", "pesos")]
 BG_CARD = cover(card, 1.5, .5, .5).filter(ImageFilter.GaussianBlur(30))
 
+
+from PIL import ImageEnhance
+CARD_HI = ImageEnhance.Contrast(ImageEnhance.Sharpness(card).enhance(1.8)).enhance(1.3)
+CARD_HI = ImageEnhance.Brightness(CARD_HI).enhance(1.05)
+_sh = Image.new("RGBA", (card.width + 160, card.height + 160), (0, 0, 0, 0))
+ImageDraw.Draw(_sh).rectangle([80, 80, 80 + card.width, 80 + card.height], fill=(0, 0, 0, 230))
+CARD_SHADOW = _sh.filter(ImageFilter.GaussianBlur(40))
+
 def scene_card(t):
     u = t - T_CARD; b = hr(t); sb = since_beat(t); punch = math.exp(-sb * 8)
     col = hr_color(b)
-    cv = Image.eval(BG_CARD, lambda v: int(v * 0.45)).convert("RGBA")
-    # raios girando
-    d = ImageDraw.Draw(cv, "RGBA"); R = 2400
+    cv = Image.eval(BG_CARD, lambda v: int(v * 0.32)).convert("RGBA")
+    d = ImageDraw.Draw(cv, "RGBA"); R = 2400; cy = H * 0.47
     for i in range(16):
-        a0 = u * 0.5 + i * 2 * math.pi / 16; a1 = a0 + math.pi / 16 * 0.5
+        a0 = u * 0.4 + i * 2 * math.pi / 16; a1 = a0 + math.pi / 16 * 0.5
         c = [(255, 214, 40), (40, 120, 255)][i % 2]
-        d.polygon([(W / 2, H * .45), (W / 2 + R * math.cos(a0), H * .45 + R * math.sin(a0)), (W / 2 + R * math.cos(a1), H * .45 + R * math.sin(a1))], fill=c + (45,))
-    slam = 1 - (1 - min(u / 0.45, 1)) ** 3
-    s_card = 700 / card.width * (2.6 - 1.6 * slam) * (1 + 0.05 * punch)
-    # polaroids em órbita 3D
-    orb = []
+        d.polygon([(W / 2, cy), (W / 2 + R * math.cos(a0), cy + R * math.sin(a0)), (W / 2 + R * math.cos(a1), cy + R * math.sin(a1))], fill=c + (34,))
+    slam = 1 - (1 - min(u / 0.4, 1)) ** 3
+    # polaroids orbitando ATRÁS do cartão (nunca cobrem o texto)
     for i, p in enumerate(POLS):
-        a = u * 1.1 + i * 2 * math.pi / len(POLS)
+        a = u * 1.0 + i * 2 * math.pi / len(POLS)
         z = math.sin(a)
-        x = W / 2 + math.cos(a) * 400 * slam; y = H * 0.45 + z * 640 * slam
-        orb.append((z, x, y, p, a))
-    orb.sort(key=lambda o: o[0])
-    for z, x, y, p, a in orb:
-        if z < 0: place(cv, p, x, y, 0.4 + 0.15 * (z + 1) / 2, math.degrees(math.cos(a)) * 0.2 - 8 * z, alpha=int(255 * min(1, u * 2)))
-    place(cv, card, W / 2, H * 0.45, s_card, 3 * math.sin(u * 1.7))
-    for z, x, y, p, a in orb:
-        if z >= 0: place(cv, p, x, y, 0.45 + 0.25 * (z + 1) / 2, -10 * math.cos(a), alpha=int(255 * min(1, u * 2)))
+        x = W / 2 + math.cos(a) * 420 * slam; y = cy + z * 790 * slam
+        place(cv, p, x, y, 0.42 + 0.14 * (z + 1) / 2, -12 * math.cos(a), alpha=int(255 * min(1, u * 2.5)))
     draw_confetti(cv, t)
     arr = np.asarray(cv.convert("RGB"), np.float32)
-    # ECG de desaquecimento + no fim vira um coração neon
-    y0 = H * 0.86
-    newp, oldp, _ = ecg_polys(t, y0, 150)
-    k_end = min(max((u - 4.6) / 1.6, 0), 1)
+    # coração neon desenhado em volta (atrás do cartão) + ECG desacelerando no rodapé
+    newp, oldp, _ = ecg_polys(t, H * 0.95, 110)
+    k_end = min(max((u - 1.6) / 1.4, 0), 1)
     arr = glow_lines(arr, [oldp], col, width=4, glow=14, alpha=0.35 * (1 - k_end))
     arr = glow_lines(arr, [newp], col, width=6, glow=24, alpha=1 - k_end)
     if k_end > 0:
-        n = int(120 * k_end)
-        pts = [(W / 2 + heart_xy(j / 120 * 2 * math.pi)[0] * 33 * (1 + 0.05 * punch), H * 0.46 + heart_xy(j / 120 * 2 * math.pi)[1] * 33 * (1 + 0.05 * punch)) for j in range(n + 1)]
-        arr = glow_lines(arr, [pts], (255, 50, 110), width=9, glow=40)
-    arr = rgb_split(arr, 18 * punch * max(0, 1 - u / 3))
-    arr = arr * (1 - VIG * 0.6)
-    arr = arr + max(0, 1 - u / 0.35) * 255          # flash da explosão
-    if t > T_END - 0.9: arr = arr * max(0, (T_TOTAL - t) / (T_TOTAL - (T_END - 0.9)))
+        n = int(140 * k_end); sc = 40 * (1 + 0.04 * punch)
+        pts = [(W / 2 + heart_xy(j / 140 * 2 * math.pi)[0] * sc, cy + 30 + heart_xy(j / 140 * 2 * math.pi)[1] * sc) for j in range(n + 1)]
+        arr = glow_lines(arr, [pts], (255, 50, 110), width=10, glow=44)
+    arr = arr * (1 - VIG * 0.55)
+    arr = bloom(np.clip(arr, 0, 255), 0.5)
+    # cartão por cima de tudo: grande, nítido, estável
+    pil = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).convert("RGBA")
+    s_card = 1010 / card.width * (2.3 - 1.3 * slam) * (1 + 0.012 * punch)
+    ang = (1 - slam) * -9 + 0.8 * math.sin(u * 1.3)
+    place(pil, CARD_SHADOW, W / 2 + 18, cy + 30, s_card, ang, alpha=int(255 * slam))
+    place(pil, CARD_HI, W / 2, cy, s_card, ang)
+    arr = np.asarray(pil.convert("RGB"), np.float32)
+    arr = rgb_split(arr, 30 * max(0, 1 - u / 0.5))
+    arr = arr + max(0, 1 - u / 0.3) * 255          # flash da explosão
+    if t > T_TOTAL - 0.45: arr = arr * max(0, (T_TOTAL - t) / 0.45)
     return arr
 
 def frame_at(t):
-    if t < T_PEAK: arr = scene_workout(t)
-    elif t < T_CARD: arr = scene_freeze(t)
+    if t < T_PEAK: arr = bloom(np.clip(scene_workout(t), 0, 255))
+    elif t < T_CARD: arr = bloom(np.clip(scene_freeze(t), 0, 255))
     else: arr = scene_card(t)
-    arr = bloom(np.clip(arr, 0, 255))
-    g = GRAIN[int(t * FPS) % len(GRAIN)]
+    g = GRAIN[int(t * FPS) % len(GRAIN)] * (0.5 if t >= T_CARD else 1)
     arr = arr + np.repeat(np.repeat(g, 2, 0), 2, 1)
     return np.clip(arr, 0, 255).astype(np.uint8)
 
@@ -480,7 +485,7 @@ if __name__ == "__main__":
            "-r", str(FPS), "-i", "-", "-i", WAV]
     if music:
         cmd += ["-i", music, "-filter_complex",
-                f"[2:a]atrim=0:{T_TOTAL},afade=t=out:st={T_TOTAL-1.2}:d=1.2,volume=0.8[m];[1:a]volume=0.9[s];[m][s]amix=inputs=2:normalize=0[a]",
+                f"[2:a]atrim=0:{T_TOTAL},afade=t=out:st={T_TOTAL-0.5}:d=0.5,volume=1.0[m];[1:a]volume=0.32[s];[m][s]amix=inputs=2:normalize=0[a]",
                 "-map", "0:v", "-map", "[a]"]
     cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", OUT]
