@@ -89,10 +89,10 @@ IM = {
 }
 card = L("cartao-tonus.jpg").crop((35, 170, 1490, 1560))
 # ordem dos cortes (cada varredura do ECG revela a próxima); foco (fx,fy) relativo
-SEQ = [("selfie", .55, .45), ("espelho", .3, .35), ("bikes", .3, .3), ("dupla", .55, .5),
+SEQ = [("selfie", .55, .45), ("espelho", .3, .35), ("video", 0.0, 0), ("dupla", .55, .5),
        ("pesos", .45, .4), ("relogio", .5, .3), ("espelho", .55, .55), ("grafico", .5, .55),
-       ("bikes", .65, .6), ("selfie", .62, .38), ("dupla", .35, .4), ("pesos", .45, .65),
-       ("relogio", .4, .28), ("espelho", .2, .2), ("bikes", .25, .25), ("dupla", .6, .45),
+       ("video", 2.2, 0), ("selfie", .62, .38), ("dupla", .35, .4), ("pesos", .45, .65),
+       ("relogio", .4, .28), ("video", 6.0, 0), ("bikes", .25, .25), ("dupla", .6, .45),
        ("selfie", .35, .3), ("grafico", .85, .45), ("pesos", .4, .3), ("espelho", .3, .3)]
 
 def cover(img, zoom, fx, fy, t_drift=0.0):
@@ -105,6 +105,19 @@ def cover(img, zoom, fx, fy, t_drift=0.0):
     return img.resize((W, H), Image.BILINEAR, box=box)
 
 LAND = {"relogio", "grafico"}
+VIDEO_SPEED = 2.6
+if not os.path.isdir(os.path.join(HERE, "_vframes")) and os.path.exists(os.path.join(HERE, "video-academia.mp4")):
+    os.makedirs(os.path.join(HERE, "_vframes"))
+    subprocess.run(["ffmpeg", "-v", "error", "-i", os.path.join(HERE, "video-academia.mp4"), "-vf", "scale=1080:1920",
+                    "-q:v", "3", os.path.join(HERE, "_vframes", "%04d.jpg")], check=True)
+VFR = sorted(os.listdir(os.path.join(HERE, "_vframes"))) if os.path.isdir(os.path.join(HERE, "_vframes")) else []
+_vcache = {}
+def video_frame(vt, punch):
+    """quadro do vídeo-academia.mp4 (extraído em _vframes) no tempo vt, com soco de zoom na batida"""
+    n = min(max(int(vt * 30), 0), len(VFR) - 1)
+    if n not in _vcache:
+        _vcache.clear(); _vcache[n] = Image.open(os.path.join(HERE, "_vframes", VFR[n])).convert("RGB")
+    return cover(_vcache[n], 1.04 + punch * 0.07, .5, .5)
 def frame_photo(key, fx, fy, t, punch):
     img = IM[key]
     if key in LAND:   # paisagem: fundo desfocado + imagem inteira por cima
@@ -289,6 +302,9 @@ def scene_workout(t):
     def photo(i):
         if i < 0: return Image.new("RGB", (W, H), (4, 4, 10))
         k, fx, fy = SEQ[i % len(SEQ)]
+        if k == "video":   # vídeo real acelerado: fx = início do trecho (s)
+            t_sw = float(np.interp((S0 + i) * BEATS_PER_SWEEP, _phi, _ts))
+            return video_frame(fx + (t - t_sw) * VIDEO_SPEED, punch)
         return frame_photo(k, fx, fy, t + i * 1.7, punch)
     new = np.asarray(photo(i_new), np.float32)
     old = np.asarray(photo(i_old), np.float32)
