@@ -95,6 +95,12 @@ SEQ = [("selfie", .55, .45), ("espelho", .3, .35), ("video", 0.0, 0), ("dupla", 
        ("relogio", .4, .28), ("video", 6.0, 0), ("bikes", .25, .25), ("dupla", .6, .45),
        ("selfie", .35, .3), ("grafico", .85, .45), ("pesos", .4, .3), ("espelho", .3, .3)]
 
+CLIP_START = {}   # índice na SEQ -> segundo inicial do clipe (2ª aparição começa mais adiante)
+_seen = {}
+for _i, (_k, _fx, _fy) in enumerate(SEQ):
+    _n = _seen.get(_k, 0); _seen[_k] = _n + 1
+    CLIP_START[_i] = (_n * 1.9) % 3.5
+
 def cover(img, zoom, fx, fy, t_drift=0.0):
     """recorta img cobrindo W×H com zoom em torno do foco (fx,fy)"""
     s = max(W / img.width, H / img.height) * zoom
@@ -112,6 +118,25 @@ if not os.path.isdir(os.path.join(HERE, "_vframes")) and os.path.exists(os.path.
                     "-q:v", "3", os.path.join(HERE, "_vframes", "%04d.jpg")], check=True)
 VFR = sorted(os.listdir(os.path.join(HERE, "_vframes"))) if os.path.isdir(os.path.join(HERE, "_vframes")) else []
 _vcache = {}
+# clipes gerados no Kling 3.0 (API Higgsfield) a partir das fotos: kling/C0x.mp4 -> substituem a foto parada
+CLIP_SPEED = 1.35
+CLIP_FILES = {"bikes": "C01", "dupla": "C02", "pesos": "C03", "selfie": "C04"}
+CLIPS = {}
+for _k, _c in CLIP_FILES.items():
+    _src = os.path.join(HERE, "kling", _c + ".mp4"); _dir = os.path.join(HERE, "_cframes", _c)
+    if not os.path.exists(_src): continue
+    if not os.path.isdir(_dir):
+        os.makedirs(_dir)
+        subprocess.run(["ffmpeg", "-v", "error", "-i", _src, "-vf", "fps=30", "-q:v", "3", os.path.join(_dir, "%04d.jpg")], check=True)
+    CLIPS[_k] = (_dir, sorted(os.listdir(_dir)))
+def clip_frame(k, vt, punch, fx, fy):
+    d, fr = CLIPS[k]
+    n = min(max(int(vt * 30), 0), len(fr) - 1)
+    key = (k, n)
+    if key not in _vcache:
+        _vcache.clear(); _vcache[key] = Image.open(os.path.join(d, fr[n])).convert("RGB")
+    return cover(_vcache[key], 1.06 + punch * 0.07, fx, fy)
+
 def video_frame(vt, punch):
     """quadro do vídeo-academia.mp4 (extraído em _vframes) no tempo vt, com soco de zoom na batida"""
     n = min(max(int(vt * 30), 0), len(VFR) - 1)
@@ -305,6 +330,9 @@ def scene_workout(t):
         if k == "video":   # vídeo real acelerado: fx = início do trecho (s)
             t_sw = float(np.interp((S0 + i) * BEATS_PER_SWEEP, _phi, _ts))
             return video_frame(fx + (t - t_sw) * VIDEO_SPEED, punch)
+        if k in CLIPS:     # clipe Kling no lugar da foto: fx = início (s)
+            t_sw = float(np.interp((S0 + i) * BEATS_PER_SWEEP, _phi, _ts))
+            return clip_frame(k, CLIP_START.get(i, 0.0) + (t - t_sw) * CLIP_SPEED, punch, fx, fy)
         return frame_photo(k, fx, fy, t + i * 1.7, punch)
     new = np.asarray(photo(i_new), np.float32)
     old = np.asarray(photo(i_old), np.float32)
