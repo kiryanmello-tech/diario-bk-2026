@@ -209,6 +209,16 @@ planos. O letreiro 目黒 / MEGURO precisa ser legível: gere-o na imagem e anim
 
 ## 8. Como chegar no realismo do ORO
 
+> **Descoberta principal: o ORO não é IA. É filmagem real com ator, figurantes e locações reais de Brisbane
+> (Story Bridge, ferry, placas de carro, cachorro e pedestres de verdade). As únicas partes sintéticas são os
+> ambientes do prédio, que ainda não existe (fachada ORO, piscina top-down, cinema, lobby): são renders 3D de
+> arquitetura com o ator filmado e composto dentro. Nesses planos a luz fica mais limpa e uniforme. É a receita
+> híbrida: o real vende o humano, e o render vende o produto.**
+>
+> **Para o Meguro, o caminho equivalente é filmar o Sr. Hideo de verdade em Curitiba (estação-tubo, calçadão,
+> faixa de pedestres) e usar IA ou render só nos planos do Meguro e na virada para Tóquio. Feito 100% em IA, a receita
+> abaixo chega perto, mas o close de rosto em movimento continua sendo o ponto mais difícil.**
+
 ### Diagnóstico: o que o ORO faz que o vídeo atual do Meguro ainda não faz
 
 | ORO (parece filmado) | Meguro atual (parece maquete 3D) |
