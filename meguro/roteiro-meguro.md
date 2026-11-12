@@ -204,3 +204,60 @@ Jornal fictício **"O CORREIO CURITIBANO"** (não use o nome de um jornal real).
 
 **Pontos de atenção:** é a continuidade do personagem (sempre com a referência do sheet) e da garoa e do jornal entre os
 planos. O letreiro 目黒 / MEGURO precisa ser legível: gere-o na imagem e anime por image-to-video, nunca text-to-video.
+
+---
+
+## 8. Como chegar no realismo do ORO
+
+### Diagnóstico: o que o ORO faz que o vídeo atual do Meguro ainda não faz
+
+| ORO (parece filmado) | Meguro atual (parece maquete 3D) |
+|---|---|
+| O **rosto** carrega o plano: pele, rugas, pelos, reflexo do ambiente no olho | Pessoas pequenas e genéricas, servindo de figurante |
+| Lente com personalidade: 24mm colada no rosto (deforma), tele no drone | Plano frontal e simétrico, "câmera de arquiteto" |
+| Profundidade de campo rasa, com o jornal desfocado em **primeiro plano** | Tudo nítido do começo ao fim |
+| Luz **dura e motivada** (sol baixo, flare) | Luz uniforme, sem fonte clara |
+| Quadro imperfeito: o beiral corta o topo, o objeto sai do quadro | Prédio inteiro, centralizado e "limpo" |
+| Planos de **1–2 s** | Planos de 3–5 s (é aí que a IA "derrete") |
+| Grão, halation e cor *iguais em todos os planos* | Cada clipe com o acabamento do modelo que gerou |
+| Foley em cada ação (papel, passos, porta) | Uma trilha contínua |
+
+### Receita
+
+**1. Começar por imagem (keyframe), nunca por text-to-video.**
+Gere o quadro perfeito em Nano Banana Pro / GPT Image e faça upscale. Só depois anime com image-to-video
+(Kling 3.0 ou Seedance via Higgsfield). O realismo é decidido na imagem: o vídeo só herda.
+
+**2. Prompt de câmera, não de cena.** Troque adjetivos ("realista, 8k, bonito") por especificação de set:
+```
+shot on ARRI Alexa 35, Cooke S4 32mm at f/2, camera 40cm from subject,
+Kodak Vision3 500T 5219, motivated practical light from paper lanterns,
+cool blue dusk ambient, light drizzle, raindrops on lens edge,
+natural skin texture, visible pores, age spots, stray eyebrow hairs,
+slight underexposure, imperfect framing, foreground out of focus
+```
+Evite: `perfect, flawless, beautiful, symmetrical, ultra detailed, CGI, render`.
+
+**3. Uma ação por plano, e câmera quase parada.** "Ele tira os óculos." Ponto. Push-in lento ou câmera fixa.
+Movimento grande e várias ações são onde aparecem mãos derretendo e rostos que mudam.
+
+**4. Gere 5 s e use 1–2 s.** Corte o melhor trecho, normalmente o do meio. É por isso que o ORO tem tantos cortes: o
+ritmo também esconde os artefatos.
+
+**5. Texto e logo sempre na imagem, nunca no vídeo.** Manchete, letreiro 目黒 e MEGURO: gere legível na imagem
+(ou cole em pós) e mande o modelo de vídeo "keep text unchanged".
+
+**6. Acabamento único em pós (de graça, em código).** É isso que "cola" planos de modelos diferentes como se fossem de
+uma câmera só: o mesmo LUT, grão, halation nas luzes, aberração cromática leve, vinheta, 24 fps e um leve
+crop/reescala. Teste: `meguro/teste-realismo-pos.jpg`.
+
+**7. Resolução.** O vídeo atual está em 480p. Gere em 1080p ou mais (ou faça upscale de vídeo na Higgsfield) e só
+depois aplique o grão: grão sobre imagem pequena vira sujeira.
+
+**8. Som vende realismo.** Garoa com perto/longe, gota no guarda-chuva, papel, passos molhados, sino, vapor. A metade do
+"parece real" está no ouvido.
+
+### Ajuste para o Meguro
+- Traga a câmera para a **altura dos olhos de quem passa**, com um guarda-chuva desfocado em primeiro plano, em vez da fachada frontal.
+- Use **gotas na lente** e **reflexo das lanternas no chão** como assinatura.
+- Faça close de **mãos e objetos** (xícara, chasen, o jornal molhado): isso dá escala humana ao lugar.
